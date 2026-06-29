@@ -2,3 +2,4 @@ aiogram
 aiosqlite
 imaplib2
 requests
+aiohttp
