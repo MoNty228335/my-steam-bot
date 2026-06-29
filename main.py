@@ -1,10 +1,12 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher
 import aiosqlite 
 
-# ВСТАВЬ СЮДА СВОЙ ТОКЕН МЕЖДУ КАВЫЧЕК
-TOKEN = "7661253341:AAFBZegyYKmJoyXbSZbdx8-QUZwMgfhkYcI"
+# Теперь бот берет токен из системных настроек (Environment Variables)
+# Мы настроим это на Render чуть позже
+TOKEN = os.environ.get("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
