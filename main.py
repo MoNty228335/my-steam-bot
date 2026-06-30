@@ -10,12 +10,29 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
+# Замени этот ID на свой (узнай его в @userinfobot)
+MY_ID = 123456789 
+
+class OnlyMeMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        # Если пишет не владелец — просто ничего не делаем
+        if event.from_user.id != 2044352246:
+            return
+        return await handler(event, data)
+
+# Создаем бота и диспетчер
+bot = Bot(token=TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+
+# ВКЛЮЧАЕМ ФИЛЬТР (Это самая важная строчка!)
+dp.message.middleware(OnlyMeMiddleware())
+dp.callback_query.middleware(OnlyMeMiddleware())
+
 # Настройка
 logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL") # Берется из настроек Render
 bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
 
 class AddAccount(StatesGroup):
     waiting_for_data = State()
