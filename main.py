@@ -2,7 +2,7 @@ import asyncio
 import os
 import logging
 import asyncpg
-from aiogram import Bot, Dispatcher, types, F, BaseMiddleware  # <--- ВАЖНО: BaseMiddleware должен быть здесь
+from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -11,38 +11,33 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiohttp import web
 from typing import Callable, Dict, Any, Awaitable
 
-# Замени этот ID на свой (узнай его в @userinfobot)
-MY_ID = 123456789 
+# 1. Настройка логирования и переменных
+logging.basicConfig(level=logging.INFO)
+TOKEN = os.environ.get("BOT_TOKEN")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-class OnlyMeMiddleware(BaseMiddleware):
-    async def __call__(self, handler, event, data):
-        # Если пишет не владелец — просто ничего не делаем
-        if event.from_user.id != 2044352246:
-            return
-        return await handler(event, data)
-
-# Создаем бота и диспетчер
+# 2. Инициализация объектов
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ВКЛЮЧАЕМ ФИЛЬТР (Это самая важная строчка!)
+# 3. Фильтр доступа
+class OnlyMeMiddleware(BaseMiddleware):
+    async def __call__(self, handler: Callable[[types.Message, Dict[str, Any]], Awaitable[Any]], 
+                       event: types.Message, data: Dict[str, Any]) -> Any:
+        if event.from_user.id != 2044352246: # Твой ID
+            return
+        return await handler(event, data)
+
 dp.message.middleware(OnlyMeMiddleware())
 dp.callback_query.middleware(OnlyMeMiddleware())
 
-# Настройка
-logging.basicConfig(level=logging.INFO)
-TOKEN = os.environ.get("BOT_TOKEN")
-DATABASE_URL = os.environ.get("DATABASE_URL") # Берется из настроек Render
-bot = Bot(token=TOKEN)
-
+# 4. Состояния и БД
 class AddAccount(StatesGroup):
     waiting_for_data = State()
 
-# --- БАЗА ДАННЫХ (SUPABASE/POSTGRES) ---
 async def get_db_conn():
     return await asyncpg.connect(DATABASE_URL)
 
-# --- КЛАВИАТУРА ---
 def get_main_kb():
     kb = [
         [KeyboardButton(text="🔑 ДАННЫЕ"), KeyboardButton(text="⚡ КИКНУТЬ")],
@@ -51,11 +46,11 @@ def get_main_kb():
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
+# 5. Обработчики
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer("Тихий Страж 7.1 (Cloud) активирован.", reply_markup=get_main_kb())
 
-# --- ЛОГИКА [ДОБАВИТЬ] ---
 @dp.message(F.text == "➕ ДОБАВИТЬ")
 async def add_start(message: types.Message, state: FSMContext):
     await message.answer("Введите через пробел:\nИгра Логин Пароль Почта Пароль_почты")
@@ -66,20 +61,17 @@ async def process_data(message: types.Message, state: FSMContext):
     data = message.text.split()
     if len(data) < 5:
         return await message.answer("Ошибка! Нужно ввести 5 параметров.")
-    
     conn = await get_db_conn()
     await conn.execute("INSERT INTO accounts (game, login, password, email, email_pass) VALUES ($1, $2, $3, $4, $5)", *data)
     await conn.close()
-    await message.answer("✅ Аккаунт успешно сохранен в облако!")
+    await message.answer("✅ Аккаунт успешно сохранен!")
     await state.clear()
 
-# --- ЛОГИКА [СТАТУС И УДАЛЕНИЕ] ---
 @dp.message(F.text == "📋 СТАТУС")
 async def show_status(message: types.Message):
     conn = await get_db_conn()
     rows = await conn.fetch("SELECT id, game, login FROM accounts")
     await conn.close()
-    
     if not rows: return await message.answer("База пуста.")
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"{r['game']} | {r['login']}", callback_data=f"acc_{r['id']}")] for r in rows
@@ -92,7 +84,6 @@ async def manage_account(callback: types.CallbackQuery):
     conn = await get_db_conn()
     acc = await conn.fetchrow("SELECT * FROM accounts WHERE id = $1", int(acc_id))
     await conn.close()
-    
     if acc:
         info = f"🎮 {acc['game']}\n👤 Логин: {acc['login']}\n🔑 Пароль: {acc['password']}\n📧 Почта: {acc['email']}\n🔐 Пароль почты: {acc['email_pass']}"
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🗑 Удалить аккаунт", callback_data=f"del_{acc_id}")]])
@@ -106,7 +97,7 @@ async def delete_account(callback: types.CallbackQuery):
     await conn.close()
     await callback.message.answer(f"✅ Аккаунт ID {acc_id} удален.")
 
-# --- ЗАПУСК ---
+# 6. Запуск
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', lambda r: web.Response(text="Бот на посту!"))
