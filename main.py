@@ -2,13 +2,14 @@ import asyncio
 import os
 import logging
 import asyncpg
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F, BaseMiddleware  # <--- ВАЖНО: BaseMiddleware должен быть здесь
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
+from typing import Callable, Dict, Any, Awaitable
 
 # Замени этот ID на свой (узнай его в @userinfobot)
 MY_ID = 123456789 
