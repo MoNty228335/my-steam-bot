@@ -1,59 +1,53 @@
 import asyncio
-import logging
 import os
-import aiosqlite
-from aiogram import Bot, Dispatcher, types
+import logging
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiohttp import web
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Получаем токен из переменных окружения
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-
-bot = Bot(token=BOT_TOKEN)
+# Инициализация
+TOKEN = os.environ.get("BOT_TOKEN")
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Инициализация БД
-async def setup_db():
-    async with aiosqlite.connect("database.db") as db:
-        await db.execute('''CREATE TABLE IF NOT EXISTS accounts
-                            (id INTEGER PRIMARY KEY, game TEXT, login TEXT, 
-                             password TEXT, email TEXT, email_pass TEXT, 
-                             status TEXT, timer TEXT)''')
-        await db.commit()
+# --- КНОПКИ ---
+def get_main_kb():
+    kb = [
+        [KeyboardButton(text="🔑 ДАННЫЕ"), KeyboardButton(text="⚡ КИКНУТЬ")],
+        [KeyboardButton(text="➕ ДОБАВИТЬ"), KeyboardButton(text="📋 СТАТУС")],
+        [KeyboardButton(text="🔴 СТОП ВСЕХ")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
-# Обработчик команды /start
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [types.KeyboardButton(text="🔑 ДАННЫЕ"), types.KeyboardButton(text="⚡ КИКНУТЬ")],
-            [types.KeyboardButton(text="📋 СТАТУС"), types.KeyboardButton(text="🔴 СТОП ВСЕХ")]
-        ],
-        resize_keyboard=True
-    )
-    await message.answer("Тихий Страж 7.1 активирован. Выберите действие:", reply_markup=keyboard)
+    await message.answer("Тихий Страж 7.1 активирован. Выберите действие:", reply_markup=get_main_kb())
 
-# Веб-сервер для Render (чтобы инстанс не засыпал)
-async def web_server():
-    async def handle(request):
-        return web.Response(text="Бот запущен!")
-    
+# --- KEEP-ALIVE (Для Render) ---
+async def web_handler(request):
+    return web.Response(text="Бот на посту!")
+
+async def start_web_server():
     app = web.Application()
-    app.add_routes([web.get('/', handle)])
+    app.router.add_get('/', web_handler)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get('PORT', 8080)))
+    # Используем порт из переменных окружения Render
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    logging.info(f"Веб-сервер запущен на порту {port}")
 
-# Основная функция запуска
+# --- ОСНОВНОЙ ЗАПУСК ---
 async def main():
-    await setup_db()
-    await web_server()
-    print("Тихий Страж 7.1 активирован. База данных готова.")
-    # Запуск бота
+    # Запускаем веб-сервер для удержания инстанса
+    await start_web_server()
+    # Запускаем бота
+    print("Тихий Страж 7.1 активирован. Ожидание обновлений...")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
